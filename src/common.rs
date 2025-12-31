@@ -1859,24 +1859,33 @@ pub fn get_dst_align_rgba() -> usize {
 }
 
 pub fn read_custom_client(config: &str) {
-    let Ok(data) = decode64(config) else {
-        log::error!("Failed to decode custom client config");
-        return;
-    };
-    const KEY: &str = "5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=";
-    let Some(pk) = get_rs_pk(KEY) else {
-        log::error!("Failed to parse public key of custom client");
-        return;
-    };
-    let Ok(data) = sign::verify(&data, &pk) else {
-        log::error!("Failed to dec custom client config");
-        return;
-    };
-    let Ok(mut data) =
-        serde_json::from_slice::<std::collections::HashMap<String, serde_json::Value>>(&data)
-    else {
-        log::error!("Failed to parse custom client config");
-        return;
+    let mut data: std::collections::HashMap<String, serde_json::Value>;
+    
+    // Try to parse as simple JSON first (for debugging and custom builds)
+    if let Ok(json_data) = serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(config) {
+        data = json_data;
+    } else {
+        // Otherwise try the standard encoded and signed format
+        let Ok(encoded_data) = decode64(config) else {
+            log::error!("Failed to decode custom client config");
+            return;
+        };
+        const KEY: &str = "5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=";
+        let Some(pk) = get_rs_pk(KEY) else {
+            log::error!("Failed to parse public key of custom client");
+            return;
+        };
+        let Ok(verified_data) = sign::verify(&encoded_data, &pk) else {
+            log::error!("Failed to verify custom client config signature");
+            return;
+        };
+        let Ok(parsed_data) = 
+            serde_json::from_slice::<std::collections::HashMap<String, serde_json::Value>>(&verified_data)
+        else {
+            log::error!("Failed to parse custom client config");
+            return;
+        };
+        data = parsed_data;
     };
 
     if let Some(app_name) = data.remove("app-name") {
@@ -1962,6 +1971,27 @@ pub fn get_builtin_option(key: &str) -> String {
 #[inline]
 pub fn is_custom_client() -> bool {
     get_app_name() != "RustDesk"
+}
+
+/// Set default server configurations
+/// This function can be called at the beginning of the program to set default server configurations
+pub fn set_default_server_configs() {
+    let mut hard_settings = config::HARD_SETTINGS.write().unwrap();
+    
+    // Set default ID server (rendezvous server)
+    hard_settings.insert("rendezvous-server".to_owned(), "idserver.example.com".to_owned());
+    
+    // Set default relay server
+    hard_settings.insert("relay-server".to_owned(), "relayserver.example.com".to_owned());
+    
+    // Set default API server
+    hard_settings.insert("api-server".to_owned(), "apiserver.example.com".to_owned());
+    
+    // Set default server key
+    hard_settings.insert("key".to_owned(), "your_server_key_here".to_owned());
+    
+    // Set custom rendezvous server (used by get_custom_rendezvous_server function)
+    hard_settings.insert("custom-rendezvous-server".to_owned(), "idserver.example.com".to_owned());
 }
 
 pub fn verify_login(_raw: &str, _id: &str) -> bool {

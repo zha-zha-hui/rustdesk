@@ -1,0 +1,6 @@
+{
+  "rendezvous-server": "110.41.133.171",
+  "relay-server": "110.41.133.171",
+  "api-server": "",
+  "key": "JAX9OkgLyo7273rapnpTnMQnrOnZRgWwTspYWKpo3bg="
+}
